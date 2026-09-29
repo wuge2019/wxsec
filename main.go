@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 
@@ -27,6 +28,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 24, G: 26, B: 32, A: 255},
 		OnStartup:        app.startup,
+		OnShutdown:       func(ctx context.Context) { app.CloseCapture() },
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,

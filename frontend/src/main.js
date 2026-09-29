@@ -43,6 +43,7 @@ $("#tabs").addEventListener("click", (e) => {
   document.querySelectorAll(".panel").forEach((p) => p.classList.add("hidden"));
   $("#panel-" + btn.dataset.tab).classList.remove("hidden");
   if (btn.dataset.tab === "browser") renderTree(state.browseRoot || $("#browseTarget").value);
+  if (btn.dataset.tab === "capture") { refreshCaptureStatus(); loadFlows(); }
 });
 
 function showTab(name) {
@@ -375,6 +376,34 @@ if (window.runtime) {
       }
     }
   });
+
+  window.runtime.EventsOn("capture:flow", (f) => {
+    cap.flows.push(f);
+    if (cap.flows.length > 20000) cap.flows.splice(0, cap.flows.length - 20000);
+    if (cap.status) cap.status.flowCount = cap.flows.length;
+    scheduleFlowRender();
+  });
+
+  window.runtime.EventsOn("capture:log", (line) => {
+    const box = $("#capLog");
+    if (cap.status) {
+      cap.status.logs = [...(cap.status.logs || []), line].slice(-300);
+    }
+    box.textContent += (box.textContent ? "\n" : "") + line;
+    box.scrollTop = box.scrollHeight;
+  });
+
+  window.runtime.EventsOn("capture:status", (st) => {
+    if (st && st.addr) {
+      cap.status = { ...cap.status, ...st };
+      renderCapEnv();
+    }
+  });
+
+  window.runtime.EventsOn("capture:analyze", (rep) => {
+    cap.report = rep;
+    renderCross();
+  });
 }
 
 // ── 安全扫描 ───────────────────────────────────────────────
@@ -694,6 +723,326 @@ async function showFile(absPath, highlightLine) {
   }
 }
 
+// ── 抓包分析 ───────────────────────────────────────────────
+const cap = {
+  status: null,
+  flows: [],
+  report: null,
+  filter: "all",     // 记录筛选：all / decrypted / connect / plain
+  xfilter: "all",    // 对照分类
+  text: "",
+  renderTimer: null,
+};
+
+const catName = { both: "两者都有", dynamic: "仅动态", static: "仅包内", "host-only": "仅域名" };
+
+function flowURL(f) {
+  if (f.url) return f.url;
+  if (f.scheme === "connect") return `https://${f.host}/（未解密，仅域名）`;
+  return f.host;
+}
+
+function fmtClock(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d)) return "-";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+}
+
+function captureOptions() {
+  return {
+    port: Number($("#capPort").value) || 0,
+    intercept: $("#capIntercept").checked,
+    sysProxy: $("#capSysProxy").checked,
+  };
+}
+
+async function refreshCaptureStatus() {
+  try {
+    cap.status = await App().CaptureStatus();
+    renderCapEnv();
+  } catch (e) {
+    status("读取抓包状态失败：" + e);
+  }
+}
+
+function renderCapEnv() {
+  const st = cap.status;
+  if (!st) return;
+  const grid = $("#capEnv");
+  const items = [
+    ["代理监听", st.running ? `运行中　${st.addr}` : `未启动（${st.addr}）`],
+    ["解密模式", st.intercept ? "解密 HTTPS" : "仅记录域名"],
+    ["根证书", st.caInstalled ? `已装入当前用户信任存储（${st.caExpires} 到期）` : "未安装 —— 点「安装本地根证书」"],
+    ["系统代理", sysProxyText(st.sysProxy)],
+    ["记录条数", `${st.flowCount} 条${st.dropped ? `（容量上限丢弃 ${st.dropped} 条）` : ""}`],
+    ["静态对照", st.scanReady ? `${st.crossRows ? st.crossRows + " 条对照记录　" : "已有扫描结果，可执行交叉分析　"}${st.scanRoot || ""}` : "尚未扫描，先完成第 3 步"],
+    ["记录文件", st.storePath || "-"],
+  ];
+  grid.replaceChildren(...items.map(([k, v]) => {
+    const cell = el("div");
+    cell.appendChild(el("span", "meta", k + "："));
+    cell.appendChild(el("b", "mono", v));
+    return cell;
+  }));
+
+  $("#btnCapStart").disabled = !!st.running;
+  $("#btnCapStop").disabled = !st.running;
+  $("#btnSysEnable").disabled = !st.running;
+  $("#btnSysRestore").disabled = !(st.sysProxy && st.sysProxy.managed);
+  $("#capLog").textContent = (st.logs || []).slice(-40).join("\n");
+  $("#capLog").scrollTop = $("#capLog").scrollHeight;
+  $("#capMeta").textContent = `共 ${st.flowCount} 条记录`;
+}
+
+function sysProxyText(sp) {
+  if (!sp) return "读取失败";
+  if (sp.managed) {
+    const origin = sp.backup ? (sp.backup.enable ? sp.backup.server : "未启用") : "未知";
+    return `已被本工具接管 → ${sp.managedAddr}（原始：${origin}，备份于 ${sp.backupAt || "-"}）`;
+  }
+  return sp.enabled ? `用户自定义：${sp.server || "-"}` : "未启用";
+}
+
+function renderFlows() {
+  const tbody = $("#flowTable tbody");
+  tbody.replaceChildren();
+  const kw = cap.text.trim().toLowerCase();
+  let shown = 0;
+  for (const f of [...cap.flows].reverse()) {
+    if (cap.filter === "decrypted" && !f.intercepted) continue;
+    if (cap.filter === "connect" && f.intercepted) continue;
+    if (cap.filter === "plain" && f.scheme !== "http") continue;
+    if (kw && !(`${flowURL(f)} ${f.appId || ""} ${f.contentType || ""}`.toLowerCase().includes(kw))) continue;
+    const tr = el("tr");
+    tr.appendChild(el("td", "mono", fmtClock(f.time)));
+    tr.appendChild(el("td", "mono", f.method || "-"));
+    const tdURL = el("td", "mono wrap-user");
+    tdURL.textContent = flowURL(f);
+    tr.appendChild(tdURL);
+    tr.appendChild(el("td", null, f.status ? String(f.status) : "-"));
+    tr.appendChild(el("td", "mono", f.appId || "-"));
+    tr.appendChild(el("td", null, f.wxVersion || "-"));
+    tr.appendChild(el("td", null, f.respBytes ? fmtSize(f.respBytes) : "-"));
+    tr.appendChild(el("td", null, f.durationMs ? f.durationMs + " ms" : "-"));
+    const note = f.note || (f.intercepted ? "" : "仅域名");
+    tr.appendChild(el("td", "meta", note));
+    tbody.appendChild(tr);
+    if (++shown >= 1000) break;
+  }
+  $("#flowEmpty").classList.toggle("hidden", shown > 0);
+  if (cap.status) $("#capMeta").textContent = `共 ${cap.status.flowCount} 条，当前显示 ${shown} 条`;
+}
+
+function renderCross() {
+  const tbody = $("#crossTable tbody");
+  tbody.replaceChildren();
+  const rep = cap.report;
+  if (!rep || !rep.rows) {
+    $("#crossEmpty").classList.remove("hidden");
+    return;
+  }
+  $("#crossEmpty").classList.toggle("hidden", rep.rows.length > 0);
+  for (const [k, v] of [["both", rep.stats.both], ["dynamic", rep.stats.dynamicOnly], ["static", rep.stats.staticOnly], ["host-only", rep.stats.hostOnly]]) {
+    const chip = document.querySelector(`#crossFilter .chip[data-xcat="${k}"]`);
+    if (chip) chip.textContent = `${catName[k]} ${v || 0}`;
+  }
+  for (const r of rep.rows) {
+    if (cap.xfilter !== "all" && r.category !== cap.xfilter) continue;
+    const tr = el("tr");
+    const tdCat = el("td");
+    tdCat.appendChild(el("span", "tag " + ({ both: "info", dynamic: "medium", static: "low", "host-only": "high" }[r.category] || "info"), catName[r.category] || r.category));
+    tr.appendChild(tdCat);
+    tr.appendChild(el("td", "mono", r.host));
+    tr.appendChild(el("td", "mono wrap-user", r.path + (r.pattern ? "　(模板匹配)" : "")));
+    tr.appendChild(el("td", "mono", (r.methods || []).join(", ") || "-"));
+    tr.appendChild(el("td", null, (r.statuses || []).join(", ") || "-"));
+    tr.appendChild(el("td", null, String(r.dynamicCount || 0)));
+    tr.appendChild(el("td", null, String(r.staticCount || 0)));
+    tr.appendChild(el("td", "meta wrap-user", (r.staticFiles || []).join("; ") || (r.sdk ? "第三方 SDK：" + r.sdk : "-")));
+    tr.appendChild(el("td", "meta", (r.notes || []).join("；")));
+    tbody.appendChild(tr);
+  }
+}
+
+async function loadFlows() {
+  try {
+    cap.flows = (await App().ListFlows(0)) || [];
+    if (cap.status) cap.status.flowCount = cap.flows.length;
+    renderFlows();
+  } catch (e) {
+    status("读取抓包记录失败：" + e);
+  }
+}
+
+function scheduleFlowRender() {
+  if (cap.renderTimer) return;
+  cap.renderTimer = setTimeout(() => {
+    cap.renderTimer = null;
+    renderFlows();
+  }, 300);
+}
+
+$("#btnCapStart").addEventListener("click", async () => {
+  const opt = captureOptions();
+  if (opt.intercept && cap.status && !cap.status.caInstalled) {
+    if (!confirm("尚未安装本地根证书，HTTPS 请求只会记录到域名级别。\n\n点「确定」继续启动（启动后可再安装），点「取消」先去安装根证书。")) return;
+  }
+  if (opt.sysProxy && !confirm("接管系统代理后，本机的 HTTPS 流量都会经过 wxsec 本地代理。\n测试结束请务必点击「恢复系统代理」或关闭本工具。\n\n确认接管？")) return;
+  status("正在启动抓包代理…");
+  try {
+    cap.status = await App().StartCapture(opt);
+    renderCapEnv();
+    await loadFlows();
+    status(`抓包代理已启动：${cap.status.addr}，请在微信中操作目标小程序`);
+  } catch (e) {
+    alert("启动抓包失败：\n" + e + "\n\n常见原因：端口被占用（换一个端口），或端口小于 1024。");
+    status("抓包启动失败");
+    await refreshCaptureStatus();
+  }
+});
+
+$("#btnCapStop").addEventListener("click", async () => {
+  try {
+    cap.status = await App().StopCapture();
+    renderCapEnv();
+    await loadFlows();
+    status("抓包已停止，记录仍保留在本机");
+  } catch (e) {
+    alert("停止抓包失败：" + e);
+  }
+});
+
+$("#btnCAPaste").addEventListener("click", async () => {
+  const addr = (cap.status && cap.status.addr) || `127.0.0.1:${Number($("#capPort").value) || 18888}`;
+  try {
+    await App().ClipboardWrite(addr);
+    status("代理地址已复制：" + addr + "（手机在同一 Wi-Fi 时手动填写 Wi-Fi 代理）");
+  } catch (e) {
+    status("复制失败：" + e);
+  }
+});
+
+$("#btnCAInstall").addEventListener("click", async () => {
+  if (!confirm("将把 wxsec 本地根证书装入「当前用户的受信任根证书颁发机构」。\n\n这只影响当前 Windows 用户，不影响系统级信任；测试结束后建议点「移除根证书」。\n确认继续？")) return;
+  status("正在安装根证书…");
+  try {
+    const info = await App().InstallCA();
+    await refreshCaptureStatus();
+    status(info.installed ? `根证书已安装：${info.path}` : "安装命令已执行，但系统仍未信任该证书");
+  } catch (e) {
+    alert("根证书安装失败：\n" + e + "\n\n可以改为手动安装：「导出根证书」后，双击证书 → 安装证书 → 本地计算机/当前用户 → 受信任的根证书颁发机构。");
+    status("根证书安装失败");
+  }
+});
+
+$("#btnCAUninstall").addEventListener("click", async () => {
+  if (!confirm("从当前用户的受信任根存储中移除 wxsec 根证书？")) return;
+  try {
+    await App().UninstallCA();
+    await refreshCaptureStatus();
+    status("根证书已移除");
+  } catch (e) {
+    alert("移除失败：" + e);
+  }
+});
+
+$("#btnCAExport").addEventListener("click", async () => {
+  const dir = await App().PickDirectory("选择根证书导出位置");
+  if (!dir) return;
+  try {
+    const path = await App().ExportCA(dir);
+    status("根证书已导出：" + path + "（手机安装该证书并信任后即可抓到 HTTPS 明文）");
+    try { await App().OpenInExplorer(path); } catch (e) { /* 忽略 */ }
+  } catch (e) {
+    alert("导出失败：" + e);
+  }
+});
+
+$("#btnSysEnable").addEventListener("click", async () => {
+  if (!confirm("接管系统代理后，本机 HTTPS 流量都会经过 wxsec。测试结束请点「恢复系统代理」。\n确认继续？")) return;
+  try {
+    const st = await App().SysProxyEnable();
+    await refreshCaptureStatus();
+    status("已接管系统代理 → " + (st.managedAddr || ""));
+  } catch (e) {
+    alert("接管失败：" + e);
+  }
+});
+
+$("#btnSysRestore").addEventListener("click", async () => {
+  try {
+    const st = await App().SysProxyRestore();
+    await refreshCaptureStatus();
+    status("系统代理已恢复：" + (st.enabled ? st.server : "未启用"));
+  } catch (e) {
+    alert("恢复系统代理失败：" + e + "\n\n请手动检查「设置 → 网络和 Internet → 代理」。");
+  }
+});
+
+$("#btnFlowRefresh").addEventListener("click", loadFlows);
+
+$("#btnFlowClear").addEventListener("click", async () => {
+  if (!confirm("清空全部抓包记录（内存与本机 flows.jsonl）？此操作不可撤销。")) return;
+  try {
+    await App().ClearFlows();
+    cap.flows = [];
+    cap.report = null;
+    renderFlows();
+    renderCross();
+    await refreshCaptureStatus();
+    status("抓包记录已清空");
+  } catch (e) {
+    alert("清空失败：" + e);
+  }
+});
+
+$("#btnAnalyze").addEventListener("click", async () => {
+  status("正在交叉分析…");
+  try {
+    cap.report = await App().AnalyzeCapture();
+    renderCross();
+    await refreshCaptureStatus();
+    status(`交叉分析完成：${cap.report.rows.length} 条对照记录`);
+  } catch (e) {
+    alert("交叉分析失败：\n" + e + "\n\n需要先完成一次安全扫描（第 3 步），并且已有静态接口资产。");
+    status("交叉分析失败");
+  }
+});
+
+$("#btnExportXlsx").addEventListener("click", async () => {
+  const dir = await App().PickDirectory("选择 URL 清单导出位置") || "";
+  status("正在导出 Excel…");
+  try {
+    const path = await App().ExportCaptureExcel(dir);
+    status("URL 清单已导出：" + path);
+    if (confirm("导出完成：\n" + path + "\n\n是否在资源管理器中打开？")) {
+      await App().OpenInExplorer(path);
+    }
+  } catch (e) {
+    alert("导出失败：" + e);
+    status("导出失败");
+  }
+});
+
+$("#flowSearch").addEventListener("input", (e) => { cap.text = e.target.value; renderFlows(); });
+
+$("#capCatFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  cap.filter = btn.dataset.cat;
+  document.querySelectorAll("#capCatFilter .chip").forEach((c) => c.classList.toggle("active", c === btn));
+  renderFlows();
+});
+
+$("#crossFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest(".chip");
+  if (!btn) return;
+  cap.xfilter = btn.dataset.xcat;
+  document.querySelectorAll("#crossFilter .chip").forEach((c) => c.classList.toggle("active", c === btn));
+  renderCross();
+});
+
 // ── 初始化 ─────────────────────────────────────────────────
 (async function init() {
   try {
@@ -703,5 +1052,6 @@ async function showFile(absPath, highlightLine) {
   await detectRoots();
   renderTasks();
   loadDecompileInfo();
+  refreshCaptureStatus();
   $("#taskList").appendChild(el("div", "hint", "免责声明：本工具仅用于获得授权的小程序安全测试与学习研究。"));
 })();

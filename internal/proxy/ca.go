@@ -130,6 +130,9 @@ func (ca *Authority) KeyPath() string { return filepath.Join(ca.dir, caKeyFile) 
 // CertPEM 是根证书公钥 PEM，可安全展示或导出。
 func (ca *Authority) CertPEM() []byte { return ca.certPEM }
 
+// CertDER 是根证书 DER，用于计算指纹并在信任存储里定位自身。
+func (ca *Authority) CertDER() []byte { return ca.caCert.Raw }
+
 // RootPool 返回把本 CA 当作信任根的证书池，测试与自检用。
 func (ca *Authority) RootPool() *x509.CertPool { return ca.leafPool }
 

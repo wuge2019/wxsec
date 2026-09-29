@@ -25,7 +25,8 @@
         <button class="tab" data-tab="tasks">2. 解包任务</button>
         <button class="tab" data-tab="scan">3. 安全扫描</button>
         <button class="tab" data-tab="assets">4. 接口资产</button>
-        <button class="tab" data-tab="report">5. 报告导出</button>
+        <button class="tab" data-tab="capture">5. 抓包分析</button>
+        <button class="tab" data-tab="report">6. 报告导出</button>
         <button class="tab" data-tab="browser">代码浏览</button>
     </nav>
 
@@ -115,6 +116,75 @@
             <tbody></tbody>
         </table>
         <div class="empty hidden" id="assetEmpty">扫描后此处列出的接口资产可作为动态测试的目标清单。</div>
+    </section>
+
+    <!-- 抓包分析 -->
+    <section class="panel hidden" id="panel-capture">
+        <div class="card">
+            <div class="card-title">抓包环境</div>
+            <div class="toolbar">
+                <label class="field"><span>监听端口</span><input class="input" id="capPort" type="number" min="1024" max="65535" value="18888" style="width:96px"/></label>
+                <label class="check"><input type="checkbox" id="capIntercept" checked/> 解密 HTTPS（需信任本地根证书）</label>
+                <label class="check"><input type="checkbox" id="capSysProxy"/> 同时接管系统代理</label>
+                <button id="btnCapStart" class="btn primary">开始抓包</button>
+                <button id="btnCapStop" class="btn" disabled>停止抓包</button>
+                <span class="divider"></span>
+                <button id="btnCAPaste" class="btn ghost sm">复制代理地址</button>
+            </div>
+            <div class="toolbar">
+                <button id="btnCAInstall" class="btn">安装本地根证书</button>
+                <button id="btnCAExport" class="btn ghost">导出根证书（供手机信任）…</button>
+                <button id="btnCAUninstall" class="btn ghost">移除根证书</button>
+                <span class="divider"></span>
+                <button id="btnSysEnable" class="btn ghost">接管系统代理</button>
+                <button id="btnSysRestore" class="btn danger">恢复系统代理</button>
+            </div>
+            <div id="capEnv" class="summary-grid"></div>
+            <div class="hint">抓包只记录 URL、状态码与体量，<b>不落盘 Cookie / Authorization</b>；启用系统代理后本机全部 HTTPS 流量都会经过该代理，测试结束请点击「恢复系统代理」或直接关闭工具。</div>
+        </div>
+
+        <div class="toolbar" style="margin-top:12px">
+            <span class="field-label">抓包记录</span>
+            <input id="flowSearch" class="input grow" placeholder="按域名 / 路径 / AppID 过滤…"/>
+            <button id="btnFlowRefresh" class="btn sm ghost">刷新</button>
+            <button id="btnFlowClear" class="btn sm danger">清空记录</button>
+            <span class="divider"></span>
+            <button id="btnAnalyze" class="btn">与静态资产交叉分析</button>
+            <button id="btnExportXlsx" class="btn primary">导出 URL 清单（Excel）</button>
+            <span id="capMeta" class="meta"></span>
+        </div>
+        <div class="chips" id="capCatFilter" style="margin-bottom:8px">
+            <button class="chip active" data-cat="all">全部</button>
+            <button class="chip" data-cat="decrypted">已解密</button>
+            <button class="chip" data-cat="connect">仅域名</button>
+            <button class="chip" data-cat="plain">明文 HTTP</button>
+        </div>
+        <table class="data" id="flowTable">
+            <thead><tr><th>时间</th><th>方法</th><th>URL</th><th>状态</th><th>AppID</th><th>包版本</th><th>响应</th><th>耗时</th><th>说明</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <div class="empty hidden" id="flowEmpty">还没有抓到请求：启动抓包并在微信里打开目标小程序后，这里会实时出现请求。</div>
+
+        <div class="card">
+            <div class="card-title">动态静态对照</div>
+            <div class="chips" id="crossFilter" style="margin-bottom:8px">
+                <button class="chip active" data-xcat="all">全部</button>
+                <button class="chip" data-xcat="both">两者都有</button>
+                <button class="chip" data-xcat="dynamic">仅动态</button>
+                <button class="chip" data-xcat="static">仅包内</button>
+                <button class="chip" data-xcat="host-only">仅域名</button>
+            </div>
+            <table class="data" id="crossTable">
+                <thead><tr><th>分类</th><th>域名</th><th>路径</th><th>方法</th><th>状态</th><th>请求次数</th><th>包内声明</th><th>包内位置</th><th>说明</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="empty" id="crossEmpty">交叉分析需要两步：先对解包目录完成安全扫描，再执行抓包，然后点击「与静态资产交叉分析」。</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">代理日志</div>
+            <div id="capLog" class="log-box"></div>
+        </div>
     </section>
 
     <!-- 报告导出 -->

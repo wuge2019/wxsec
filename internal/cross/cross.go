@@ -18,6 +18,17 @@ const (
 	CatHostOnly = "host-only" // 动态侧只解出域名，未拿到路径
 )
 
+// Report.Stats 的键名常量。
+const (
+	StatBoth         = "both"
+	StatDynamicOnly  = "dynamicOnly"
+	StatStaticOnly   = "staticOnly"
+	StatHostOnly     = "hostOnly"
+	StatRows         = "rows"
+	StatDynamicHosts = "dynamicHosts"
+	StatStaticHosts  = "staticHosts"
+)
+
 // Row 是一条 URL 对照记录（按 域名+路径 归并，不含查询参数）。
 type Row struct {
 	Key          string   `json:"key"`
@@ -349,7 +360,6 @@ func (r *Report) finalize() {
 	sh := map[string]bool{}
 	for _, row := range r.Rows {
 		if row.DynamicCount > 0 {
-			r.Stats[CatDynamic]++
 			dh[row.Host] = true
 		}
 		if row.StaticCount > 0 {
@@ -357,13 +367,13 @@ func (r *Report) finalize() {
 		}
 		switch row.Category {
 		case CatBoth:
-			r.Stats["both"]++
+			r.Stats[StatBoth]++
 		case CatDynamic:
-			r.Stats["dynamicOnly"]++
+			r.Stats[StatDynamicOnly]++
 		case CatStatic:
-			r.Stats["staticOnly"]++
+			r.Stats[StatStaticOnly]++
 		case CatHostOnly:
-			r.Stats["hostOnly"]++
+			r.Stats[StatHostOnly]++
 		}
 	}
 	for _, h := range r.Hosts {
@@ -376,9 +386,17 @@ func (r *Report) finalize() {
 	}
 	r.DynamicHosts = boolKeys(dh)
 	r.StaticHosts = boolKeys(sh)
-	r.Stats["dynamicHosts"] = len(r.DynamicHosts)
-	r.Stats["staticHosts"] = len(r.StaticHosts)
-	r.Stats["rows"] = len(r.Rows)
+	r.Stats[StatDynamicHosts] = len(r.DynamicHosts)
+	r.Stats[StatStaticHosts] = len(r.StaticHosts)
+	r.Stats[StatRows] = len(r.Rows)
+}
+
+// Tally 返回某一分类的行数，键名使用 Stat* 常量，避免调用方写散落的字符串。
+func (r *Report) Tally(stat string) int {
+	if r == nil {
+		return 0
+	}
+	return r.Stats[stat]
 }
 
 // matchPattern 用含变量的静态路径匹配动态路径（段数相同、变量段通配）。

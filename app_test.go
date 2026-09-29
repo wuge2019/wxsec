@@ -5,6 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"wxsec/internal/cross"
+	"wxsec/internal/proxy"
+	"wxsec/internal/scanner"
 )
 
 // appBundle 复刻真实编译产物的最小契约：$gwx 工厂 + __wxAppCode__ 注册语句。
@@ -165,5 +169,125 @@ func TestDecompileIntoWithoutBundles(t *testing.T) {
 	}
 	if strings.Contains(task.Message, "失败") {
 		t.Errorf("task message = %q", task.Message)
+	}
+}
+
+// 抓包生命周期：随机端口启动、重复启动幂等、导出 Excel、退出收尾。
+// 系统代理与根证书写入涉及真实机器状态，这里刻意不触发。
+func TestCaptureLifecycleWithoutSystemProxy(t *testing.T) {
+	a := NewApp() // 测试里没有 Wails 上下文，事件推送会自动跳过
+	defer a.CloseCapture()
+
+	// Windows 允许普通进程绑定低端口，公端口必须被拒绝。
+	for _, port := range []int{80, 443, 1023, 65536, 70000} {
+		if _, err := a.StartCapture(CaptureOptions{Port: port}); err == nil {
+			t.Errorf("端口 %d 应被拒绝但启动成功", port)
+		}
+	}
+
+	st, err := a.StartCapture(CaptureOptions{Intercept: true})
+	if err != nil {
+		t.Fatalf("启动抓包失败: %v", err)
+	}
+	if !st.Running || st.Port <= 0 {
+		t.Fatalf("代理状态错误: %+v", st)
+	}
+	if st.SysProxy != nil && st.SysProxy.Managed {
+		t.Fatal("测试不应接管系统代理")
+	}
+
+	again, err := a.StartCapture(CaptureOptions{Intercept: true})
+	if err != nil {
+		t.Fatalf("重复启动失败: %v", err)
+	}
+	if again.Port != st.Port {
+		t.Errorf("重复启动换了端口: %d -> %d", st.Port, again.Port)
+	}
+
+	ca, err := a.CAInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(ca.Subject, "wxsec") {
+		t.Errorf("根证书主题异常: %q", ca.Subject)
+	}
+	exported, err := a.ExportCA(t.TempDir())
+	if err != nil {
+		t.Fatalf("导出根证书失败: %v", err)
+	}
+	if !strings.HasSuffix(exported, ".crt") {
+		t.Errorf("根证书导出路径异常: %s", exported)
+	}
+
+	a.capMu.Lock()
+	store := a.capStore
+	a.capMu.Unlock()
+	store.Add(proxy.Flow{Method: "GET", Scheme: "https", Host: "api.example.com",
+		Path: "/v1/user/list", Query: "limit=20", Status: 200, Intercepted: true,
+		AppID: "wx0123456789abcdef"})
+	store.Add(proxy.Flow{Method: "CONNECT", Scheme: "connect", Host: "pinned.example.com"})
+
+	flows, err := a.ListFlows(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(flows) != 2 {
+		t.Fatalf("记录条数 = %d", len(flows))
+	}
+	if limited, err := a.ListFlows(1); err != nil || len(limited) != 1 || limited[0].Host != "pinned.example.com" {
+		t.Errorf("limit 取尾部记录失败: %v %+v", err, limited)
+	}
+
+	if _, err := a.AnalyzeCapture(); err == nil || !strings.Contains(err.Error(), "安全扫描") {
+		t.Errorf("未扫描时应提示先扫描: %v", err)
+	}
+	if p, err := a.ExportCaptureExcel(t.TempDir()); err != nil || !strings.HasSuffix(p, ".xlsx") {
+		t.Errorf("仅有抓包记录也应能导出: %v %s", err, p)
+	}
+
+	// 模拟一次已完成的扫描，交叉分析与导出都应可用。
+	a.mu.Lock()
+	a.lastScan = &scanner.Result{Root: "fake-root", Assets: []scanner.Asset{
+		{URL: "https://api.example.com/v1/user/list", Scheme: "https", Host: "api.example.com",
+			Path: "/v1/user/list", File: "pages/user/index.js", Count: 2},
+	}}
+	a.scanRoot = "fake-root"
+	a.mu.Unlock()
+
+	rep, err := a.AnalyzeCapture()
+	if err != nil {
+		t.Fatalf("交叉分析失败: %v", err)
+	}
+	if rep.Tally(cross.StatBoth) != 1 || rep.Tally(cross.StatHostOnly) != 1 {
+		t.Errorf("交叉统计错误: %v", rep.Stats)
+	}
+
+	outDir := t.TempDir()
+	path, err := a.ExportCaptureExcel(outDir)
+	if err != nil {
+		t.Fatalf("导出 Excel 失败: %v", err)
+	}
+	if filepath.Dir(path) != outDir || !strings.HasSuffix(path, ".xlsx") {
+		t.Errorf("导出位置错误: %s", path)
+	}
+	if fi, err := os.Stat(path); err != nil || fi.Size() < 4096 {
+		t.Errorf("导出的工作簿异常: %v", err)
+	}
+
+	st, err = a.StopCapture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Running {
+		t.Error("停止后仍在运行")
+	}
+	if err := a.ClearFlows(); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := a.ListFlows(0); err != nil || len(n) != 0 {
+		t.Errorf("清空后仍有记录: %d", len(n))
+	}
+	if len(a.capLogsSnapshot()) == 0 {
+		t.Error("抓包日志为空")
 	}
 }

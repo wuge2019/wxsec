@@ -122,7 +122,7 @@ func TestAnalyzeCategories(t *testing.T) {
 
 	// both：user/list、/v1/order、/v1/order/8871/detail；dynamicOnly：admin/export、plain/config；
 	// staticOnly：coupon/never-called、res.wx.qq.com/foo.js；hostOnly：only-domain。
-	if rep.Stats["both"] != 3 || rep.Stats["dynamicOnly"] != 2 || rep.Stats["staticOnly"] != 2 || rep.Stats["hostOnly"] != 1 {
+	if rep.Tally(StatBoth) != 3 || rep.Tally(StatDynamicOnly) != 2 || rep.Tally(StatStaticOnly) != 2 || rep.Tally(StatHostOnly) != 1 {
 		t.Errorf("stats = %v", rep.Stats)
 	}
 	if rep.FlowTotal != len(flows) || rep.AssetTotal != len(assets)+len(sdk) {

@@ -1,3 +1,121 @@
+export namespace cross {
+	
+	export class HostStat {
+	    host: string;
+	    dynamicCount: number;
+	    staticCount: number;
+	    paths: number;
+	    appIds: string[];
+	    sdk: string;
+	    encryptedOnly: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostStat(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.dynamicCount = source["dynamicCount"];
+	        this.staticCount = source["staticCount"];
+	        this.paths = source["paths"];
+	        this.appIds = source["appIds"];
+	        this.sdk = source["sdk"];
+	        this.encryptedOnly = source["encryptedOnly"];
+	    }
+	}
+	export class Row {
+	    key: string;
+	    host: string;
+	    path: string;
+	    scheme: string;
+	    category: string;
+	    methods: string[];
+	    statuses: number[];
+	    queryKeys: string[];
+	    appIds: string[];
+	    staticFiles: string[];
+	    staticCount: number;
+	    dynamicCount: number;
+	    sdk: string;
+	    sample: string;
+	    pattern: boolean;
+	    notes: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Row(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.host = source["host"];
+	        this.path = source["path"];
+	        this.scheme = source["scheme"];
+	        this.category = source["category"];
+	        this.methods = source["methods"];
+	        this.statuses = source["statuses"];
+	        this.queryKeys = source["queryKeys"];
+	        this.appIds = source["appIds"];
+	        this.staticFiles = source["staticFiles"];
+	        this.staticCount = source["staticCount"];
+	        this.dynamicCount = source["dynamicCount"];
+	        this.sdk = source["sdk"];
+	        this.sample = source["sample"];
+	        this.pattern = source["pattern"];
+	        this.notes = source["notes"];
+	    }
+	}
+	export class Report {
+	    // Go type: time
+	    generatedAt: any;
+	    scanRoot: string;
+	    flowTotal: number;
+	    assetTotal: number;
+	    rows: Row[];
+	    hosts: HostStat[];
+	    stats: Record<string, number>;
+	    dynamicHosts: string[];
+	    staticHosts: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Report(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.generatedAt = this.convertValues(source["generatedAt"], null);
+	        this.scanRoot = source["scanRoot"];
+	        this.flowTotal = source["flowTotal"];
+	        this.assetTotal = source["assetTotal"];
+	        this.rows = this.convertValues(source["rows"], Row);
+	        this.hosts = this.convertValues(source["hosts"], HostStat);
+	        this.stats = source["stats"];
+	        this.dynamicHosts = source["dynamicHosts"];
+	        this.staticHosts = source["staticHosts"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace decomp {
 	
 	export class Page {
@@ -61,6 +179,102 @@ export namespace decomp {
 
 export namespace main {
 	
+	export class CAInfo {
+	    path: string;
+	    subject: string;
+	    installed: boolean;
+	    notAfter: string;
+	    supported: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CAInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.subject = source["subject"];
+	        this.installed = source["installed"];
+	        this.notAfter = source["notAfter"];
+	        this.supported = source["supported"];
+	    }
+	}
+	export class CaptureOptions {
+	    port: number;
+	    intercept: boolean;
+	    sysProxy: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.port = source["port"];
+	        this.intercept = source["intercept"];
+	        this.sysProxy = source["sysProxy"];
+	    }
+	}
+	export class CaptureStatus {
+	    running: boolean;
+	    addr: string;
+	    port: number;
+	    intercept: boolean;
+	    flowCount: number;
+	    dropped: number;
+	    storePath: string;
+	    caPath: string;
+	    caInstalled: boolean;
+	    caExpires: string;
+	    sysProxy?: proxy.SysProxyState;
+	    logs: string[];
+	    scanReady: boolean;
+	    scanRoot: string;
+	    crossRows: number;
+	    crossStats: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.addr = source["addr"];
+	        this.port = source["port"];
+	        this.intercept = source["intercept"];
+	        this.flowCount = source["flowCount"];
+	        this.dropped = source["dropped"];
+	        this.storePath = source["storePath"];
+	        this.caPath = source["caPath"];
+	        this.caInstalled = source["caInstalled"];
+	        this.caExpires = source["caExpires"];
+	        this.sysProxy = this.convertValues(source["sysProxy"], proxy.SysProxyState);
+	        this.logs = source["logs"];
+	        this.scanReady = source["scanReady"];
+	        this.scanRoot = source["scanRoot"];
+	        this.crossRows = source["crossRows"];
+	        this.crossStats = source["crossStats"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DirEntry {
 	    name: string;
 	    path: string;
@@ -156,6 +370,142 @@ export namespace main {
 	        this.decompile = source["decompile"];
 	        this.scan = source["scan"];
 	    }
+	}
+
+}
+
+export namespace proxy {
+	
+	export class Flow {
+	    seq: number;
+	    // Go type: time
+	    time: any;
+	    method: string;
+	    url: string;
+	    scheme: string;
+	    host: string;
+	    path: string;
+	    query: string;
+	    status: number;
+	    proto: string;
+	    reqType: string;
+	    contentType: string;
+	    reqBytes: number;
+	    respBytes: number;
+	    durationMs: number;
+	    appId: string;
+	    wxVersion: string;
+	    referer: string;
+	    userAgent: string;
+	    intercepted: boolean;
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Flow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seq = source["seq"];
+	        this.time = this.convertValues(source["time"], null);
+	        this.method = source["method"];
+	        this.url = source["url"];
+	        this.scheme = source["scheme"];
+	        this.host = source["host"];
+	        this.path = source["path"];
+	        this.query = source["query"];
+	        this.status = source["status"];
+	        this.proto = source["proto"];
+	        this.reqType = source["reqType"];
+	        this.contentType = source["contentType"];
+	        this.reqBytes = source["reqBytes"];
+	        this.respBytes = source["respBytes"];
+	        this.durationMs = source["durationMs"];
+	        this.appId = source["appId"];
+	        this.wxVersion = source["wxVersion"];
+	        this.referer = source["referer"];
+	        this.userAgent = source["userAgent"];
+	        this.intercepted = source["intercepted"];
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SysProxySnapshot {
+	    enable: boolean;
+	    server: string;
+	    bypass: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SysProxySnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enable = source["enable"];
+	        this.server = source["server"];
+	        this.bypass = source["bypass"];
+	    }
+	}
+	export class SysProxyState {
+	    enabled: boolean;
+	    server: string;
+	    bypass: string;
+	    managed: boolean;
+	    managedAddr: string;
+	    backupAt: string;
+	    backup?: SysProxySnapshot;
+	    backupPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SysProxyState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.server = source["server"];
+	        this.bypass = source["bypass"];
+	        this.managed = source["managed"];
+	        this.managedAddr = source["managedAddr"];
+	        this.backupAt = source["backupAt"];
+	        this.backup = this.convertValues(source["backup"], SysProxySnapshot);
+	        this.backupPath = source["backupPath"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
