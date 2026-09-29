@@ -1,0 +1,30 @@
+# 构建产物
+build/bin
+wxsec.exe
+*.exe
+
+# 前端
+node_modules
+frontend/dist
+frontend/node_modules
+
+# 抓包与解包输出（含流量记录、本地根证书私钥，绝不入库）
+wxsec-capture/
+wxsec-output/
+wxsec-reports/
+.flows.jsonl
+flows.jsonl
+*.key
+*.p12
+*.pfx
+
+# 验证脚手架与临时截图
+.verify-cache*
+.shots/
+*.png.tmp
+
+# 编辑器与系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

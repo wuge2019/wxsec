@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>微信小程序安全测试工具</title>
+</head>
+<body>
+<div id="app">
+    <header class="topbar">
+        <div class="brand">
+            <span class="logo">WX</span>
+            <div>
+                <div class="brand-title">微信小程序安全测试工具</div>
+                <div class="brand-sub" id="versionLabel">wxsec</div>
+            </div>
+        </div>
+        <div class="topbar-right">
+            <span class="disclaimer" id="legalNotice"></span>
+        </div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="packages">1. 包发现</button>
+        <button class="tab" data-tab="tasks">2. 解包任务</button>
+        <button class="tab" data-tab="scan">3. 安全扫描</button>
+        <button class="tab" data-tab="assets">4. 接口资产</button>
+        <button class="tab" data-tab="report">5. 报告导出</button>
+        <button class="tab" data-tab="browser">代码浏览</button>
+    </nav>
+
+    <!-- 包发现 -->
+    <section class="panel" id="panel-packages">
+        <div class="toolbar">
+            <button id="btnDetect" class="btn">自动探测微信缓存目录</button>
+            <select id="rootSelect" class="select grow"></select>
+            <button id="btnScanRoot" class="btn">枚举小程序包</button>
+            <span class="divider"></span>
+            <button id="btnCleanSelected" class="btn danger">清除选中缓存</button>
+            <button id="btnPickDir" class="btn ghost">选择目录…</button>
+            <button id="btnPickFiles" class="btn ghost">选择 .wxapkg 文件…</button>
+        </div>
+        <div class="hint" id="pkgHint">提示：先在手机/PC 微信中打开目标小程序，让客户端把包下载到本地缓存。「清除选中缓存」只删除所勾选 AppID 的缓存目录，微信会在下次打开该小程序时重新下载。</div>
+        <table class="data" id="pkgTable">
+            <thead>
+            <tr>
+                <th class="col-chk"><input type="checkbox" id="chkAllPkg" title="全选 / 取消全选"/></th><th>AppID</th><th>版本</th><th>包文件</th><th>大小</th><th>加密</th><th>最后更新</th><th class="col-op">操作</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </section>
+
+    <!-- 解包任务 -->
+    <section class="panel hidden" id="panel-tasks">
+        <div class="toolbar">
+            <label class="field"><span>输出目录</span>
+                <input id="outDir" class="input grow" placeholder="默认：~/wxsec-output"/>
+                <button id="btnPickOut" class="btn ghost sm">选择</button>
+            </label>
+            <label class="field"><span>AppID(加密包必填)</span>
+                <input id="appidInput" class="input" placeholder="wx0123456789abcdef"/>
+            </label>
+            <label class="check"><input type="checkbox" id="optBeautify" checked/> 代码美化</label>
+            <label class="check"><input type="checkbox" id="optDecompile" checked/> 还原 WXML/WXSS</label>
+            <label class="check"><input type="checkbox" id="optAutoScan" checked/> 解包后自动安全扫描</label>
+        </div>
+        <div class="hint">「还原 WXML/WXSS」会执行包内的编译产物（page-frame 等）重建页面结构与样式，产物写入各输出目录下的 <code>_decompiled</code> 子目录，不覆盖原始解包文件。动态分支按哨兵数据展开，结果仅供安全审计参考。</div>
+        <div class="toolbar">
+            <button id="btnUnpackSelected" class="btn primary">解包选中</button>
+            <button id="btnUnpackAll" class="btn">全部解包</button>
+            <span class="divider"></span>
+            <button id="btnUnpackPick" class="btn ghost">选择任意文件解包…</button>
+        </div>
+        <div id="taskList" class="task-list"></div>
+    </section>
+
+    <!-- 安全扫描 -->
+    <section class="panel hidden" id="panel-scan">
+        <div class="toolbar">
+            <span class="field-label">扫描目标</span>
+            <select id="scanTarget" class="select grow"></select>
+            <button id="btnScan" class="btn primary">开始扫描</button>
+            <span id="scanMeta" class="meta"></span>
+        </div>
+        <div class="toolbar" id="sevFilter">
+            <span class="field-label">筛选</span>
+            <button class="chip active" data-sev="all">全部</button>
+            <button class="chip sev-high" data-sev="high">高危</button>
+            <button class="chip sev-medium" data-sev="medium">中危</button>
+            <button class="chip sev-low" data-sev="low">低危</button>
+            <button class="chip sev-info" data-sev="info">提示</button>
+            <input id="findingSearch" class="input grow" placeholder="按文件路径 / 内容关键字过滤…"/>
+        </div>
+        <table class="data" id="findingTable">
+            <thead>
+            <tr><th>等级</th><th>规则</th><th>标题</th><th>位置</th><th>命中内容</th><th>处置建议</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div class="empty hidden" id="scanEmpty">暂无扫描结果。请先解包并对目标目录执行扫描。</div>
+    </section>
+
+    <!-- 接口资产 -->
+    <section class="panel hidden" id="panel-assets">
+        <div class="toolbar">
+            <span class="field-label">关联域名</span>
+            <div id="hostChips" class="chips"></div>
+            <label class="check"><input type="checkbox" id="chkFilterSDK" checked/> 过滤第三方 SDK 自带域名</label>
+            <button id="btnCopyHosts" class="btn ghost sm">复制全部域名</button>
+        </div>
+        <div class="hint" id="assetNote"></div>
+        <table class="data" id="assetTable">
+            <thead><tr><th>URL</th><th>协议</th><th>路径</th><th>出现位置</th><th>次数</th><th>来源</th><th class="col-op">操作</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <div class="empty hidden" id="assetEmpty">扫描后此处列出的接口资产可作为动态测试的目标清单。</div>
+    </section>
+
+    <!-- 报告导出 -->
+    <section class="panel hidden" id="panel-report">
+        <div class="toolbar">
+            <span class="field-label">导出目录</span>
+            <input id="reportDir" class="input grow" placeholder="默认：~/wxsec-reports"/>
+            <button id="btnPickReportDir" class="btn ghost sm">选择</button>
+            <button id="btnExportHtml" class="btn primary">导出 HTML 报告</button>
+            <button id="btnExportJson" class="btn">导出 JSON</button>
+        </div>
+        <div id="reportResult" class="log-box hidden"></div>
+        <div class="card">
+            <div class="card-title">扫描摘要</div>
+            <div id="reportSummary" class="summary-grid"></div>
+        </div>
+    </section>
+
+    <!-- 代码浏览 -->
+    <section class="panel hidden" id="panel-browser">
+        <div class="browser">
+            <div class="tree-pane">
+                <div class="tree-head">
+                    <select id="browseTarget" class="select"></select>
+                </div>
+                <div class="tree-head">
+                    <button id="btnDecompileHere" class="btn sm ghost">还原该目录的 WXML/WXSS</button>
+                    <span id="decompileInfo" class="meta"></span>
+                </div>
+                <div id="fileTree" class="file-tree"></div>
+            </div>
+            <div class="code-pane">
+                <div class="code-head"><span id="codePath" class="mono"></span><span id="codeInfo" class="meta"></span></div>
+                <pre id="codeView" class="code-view">在左侧选择文件，或在安全扫描结果中点击「定位」跳转。</pre>
+            </div>
+        </div>
+    </section>
+
+    <footer class="statusbar">
+        <span id="statusText">就绪</span>
+        <span id="progressWrap" class="progress hidden"><i id="progressBar"></i></span>
+    </footer>
+</div>
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>
