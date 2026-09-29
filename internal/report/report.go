@@ -265,6 +265,9 @@ footer{padding:20px 32px;font-size:12px;color:#5f6368;border-top:1px solid #dadc
   本报告由 wxsec 静态扫描引擎自动生成，仅覆盖内置规则，<b>不能替代人工代码审计与动态接口测试</b>；
   报告中的密钥类命中已做脱敏处理，完整值请回到源码定位查看。
   请确保仅在获得授权的测试场景中使用本报告。
+  <br>
+  wxsec · Copyright © 2026 wuge2019 · 以 <a href="https://opensource.org/licenses/MIT">MIT License</a> 开源发布 ·
+  联系：QQ 3531323422 / 微信 Lyu5918 / GitHub wuge2019
 </footer>
 </body>
 </html>`

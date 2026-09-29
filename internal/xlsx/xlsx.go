@@ -215,7 +215,10 @@ func writeSummary(f *excelize.File, in Input) error {
 			[2]string{"静态域名", strings.Join(in.Report.StaticHosts, ", ")},
 		)
 	}
-	rows = append(rows, [2]string{"数据范围说明", "仅包含 URL、状态码与体量等定位信息；未记录 Cookie、Authorization 等凭据"})
+	rows = append(rows,
+		[2]string{"数据范围说明", "仅包含 URL、状态码与体量等定位信息；未记录 Cookie、Authorization 等凭据"},
+		[2]string{"工具与许可", "wxsec · Copyright © 2026 wuge2019 · MIT License · GitHub: wuge2019"},
+	)
 	for i, r := range rows {
 		if err := setRow(f, sheetSummary, i+2, []string{r[0], r[1]}); err != nil {
 			return err

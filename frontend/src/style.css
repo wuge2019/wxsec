@@ -160,6 +160,7 @@ td.wrap-user { user-select: text; }
 }
 .progress { flex: 1; max-width: 340px; height: 6px; background: #d7dade; border-radius: 3px; overflow: hidden; }
 .progress i { display: block; height: 100%; width: 0; background: var(--primary); transition: width .15s; }
+.about { margin-left: auto; white-space: nowrap; user-select: text; }
 
 .empty { padding: 26px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; margin-top: 8px; }
 .row-op { display: flex; gap: 6px; }
