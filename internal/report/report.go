@@ -264,9 +264,11 @@ footer{padding:20px 32px;font-size:12px;color:#5f6368;border-top:1px solid #dadc
 <footer>
   本报告由 wxsec 静态扫描引擎自动生成，仅覆盖内置规则，<b>不能替代人工代码审计与动态接口测试</b>；
   报告中的密钥类命中已做脱敏处理，完整值请回到源码定位查看。
-  请确保仅在获得授权的测试场景中使用本报告。
+  <b>报告内容是需要人工验证的线索，不构成安全结论</b>，误报与漏报均属正常现象。
+  请仅在对你拥有所有权或已获得书面测试授权的小程序范围内使用本报告；
+  本工具不绕过、也不协助绕过服务端鉴权与平台安全机制。
   <br>
-  wxsec · Copyright © 2026 wuge2019 · 以 <a href="https://opensource.org/licenses/MIT">MIT License</a> 开源发布 ·
+  wxsec · Copyright © 2026 Lyu · 以 <a href="https://opensource.org/licenses/MIT">MIT License</a> 开源发布 ·
   联系：QQ 3531323422 / 微信 Lyu5918 / GitHub wuge2019
 </footer>
 </body>

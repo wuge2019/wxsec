@@ -125,6 +125,12 @@ func TestExportWorkbook(t *testing.T) {
 	if !strings.Contains(cell["数据范围说明"], "Cookie") {
 		t.Errorf("缺少数据范围说明: %v", cell)
 	}
+	if !strings.Contains(cell["结论使用说明"], "不构成安全结论") {
+		t.Errorf("缺少结论免责说明: %v", cell)
+	}
+	if !strings.Contains(cell["授权要求"], "书面测试授权") {
+		t.Errorf("缺少授权要求说明: %v", cell)
+	}
 }
 
 func TestExportKeepsFormulasAsText(t *testing.T) {

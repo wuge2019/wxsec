@@ -217,7 +217,9 @@ func writeSummary(f *excelize.File, in Input) error {
 	}
 	rows = append(rows,
 		[2]string{"数据范围说明", "仅包含 URL、状态码与体量等定位信息；未记录 Cookie、Authorization 等凭据"},
-		[2]string{"工具与许可", "wxsec · Copyright © 2026 wuge2019 · MIT License · GitHub: wuge2019"},
+		[2]string{"结论使用说明", "表中内容均为待人工验证的线索，不构成安全结论；误报与漏报均属正常现象"},
+		[2]string{"授权要求", "仅限对自己拥有或已获得书面测试授权的小程序使用；本工具不绕过服务端鉴权与平台安全机制"},
+		[2]string{"工具与许可", "wxsec · Copyright © 2026 Lyu · MIT License · GitHub: wuge2019"},
 	)
 	for i, r := range rows {
 		if err := setRow(f, sheetSummary, i+2, []string{r[0], r[1]}); err != nil {
