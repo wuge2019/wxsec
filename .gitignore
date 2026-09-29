@@ -28,3 +28,4 @@ flows.jsonl
 .vscode/
 .DS_Store
 Thumbs.db
+frontend/package.json.md5

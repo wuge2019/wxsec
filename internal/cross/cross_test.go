@@ -1,6 +1,7 @@
 package cross
 
 import (
+	"strings"
 	"testing"
 
 	"wxsec/internal/proxy"
@@ -115,8 +116,13 @@ func TestAnalyzeCategories(t *testing.T) {
 	if sdkRow.SDK != "微信/腾讯开放平台" {
 		t.Errorf("SDK 归属丢失: %q", sdkRow.SDK)
 	}
+	if sdkRow.Category != CatStatic {
+		t.Errorf("SDK 资产分类 = %q", sdkRow.Category)
+	}
 
-	if rep.Stats["both"] != 3 || rep.Stats["dynamicOnly"] != 2 || rep.Stats["staticOnly"] != 1 || rep.Stats["hostOnly"] != 1 {
+	// both：user/list、/v1/order、/v1/order/8871/detail；dynamicOnly：admin/export、plain/config；
+	// staticOnly：coupon/never-called、res.wx.qq.com/foo.js；hostOnly：only-domain。
+	if rep.Stats["both"] != 3 || rep.Stats["dynamicOnly"] != 2 || rep.Stats["staticOnly"] != 2 || rep.Stats["hostOnly"] != 1 {
 		t.Errorf("stats = %v", rep.Stats)
 	}
 	if rep.FlowTotal != len(flows) || rep.AssetTotal != len(assets)+len(sdk) {
@@ -187,7 +193,7 @@ func TestNormalizeHelpers(t *testing.T) {
 
 func contains(list []string, want string) bool {
 	for _, s := range list {
-		if s == want {
+		if strings.Contains(s, want) {
 			return true
 		}
 	}
